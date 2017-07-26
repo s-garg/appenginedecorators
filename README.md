@@ -61,6 +61,9 @@ func Decorate(h Handler, ds ...Decorator) Handler {
 
 ```
 
+## Onion Rings Analogy
 
-Onion Rings Analogy: Consier the client (Handler) are the core of a onion ring and the decorators as the layers of the onion rings which
-adds on the core to enhance it without modification.
+Consier the client (Handler) as the core of a onion ring and the decorators as the layers of the onion rings which
+adds on the core to enhance it without modifying it. (Open Closes Rule!)
+
+![Onion Slice](https://github.com/s-garg/appenginedecorators/blob/master/githubimage.png)
