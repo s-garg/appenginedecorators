@@ -74,3 +74,4 @@ func HandlerWrapper(handler Handler, path string, method string, gaTrackingId st
 		}
 	}
 }
+
