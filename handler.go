@@ -20,7 +20,7 @@ func (f HandlerFunc) Do(r *http.Request, ps httprouter.Params, username string) 
 	return f(r, ps, username)
 }
 
-// Decorator takes in Handler , applies enhancement to the handler, without modifying its existing properties and return the enhanced handler
+// A Decorator takes in Handler , applies enhancement to the handler, without modifying its existing properties and return the enhanced handler
 type Decorator func(h Handler) Handler
 
 // Decorate is used to bind all the decorators together with the handler,with every loop a decorator is applied, which adds it own enhancement
