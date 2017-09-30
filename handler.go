@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-// A Handler represents code that processes a http request and returns response as an interface.
+// Handler is an interface that processes a http request and returns response as an interface.
 type Handler interface {
 	Do(r *http.Request, ps httprouter.Params, username string) (interface{}, *ServerError)
 }
