@@ -12,26 +12,18 @@ import (
 )
 
 // Search decorator takes an array of attributes against which search paramater will be matched and it returns enhanced resposne filtered by search criteria
-// e.g. localhost:8080/_a/assemblies?search="MCIL"
 func Search(attribute []string) Decorator {
 	return func(h Handler) Handler {
 		return HandlerFunc(func(r *http.Request, ps httprouter.Params, username string) (interface{}, *ServerError) {
-			// e.g. localhost:8080/_a/assemblies?search="MCIL"
-			ctx := appengine.NewContext(r)
 			response, serverError := h.Do(r, ps, username)
 			if serverError != nil {
 				return response, serverError
 			}
 			search := getSearchFromQuery(r, username)
-			search = strings.TrimSpace(search)
 			if search == "" {
 				return response, nil
 			}
-			// If search string is  empty return handler response with no enhancement
-			// e.g. localhost:8080/_a/assemblies
-			//limitBySearch will get limit results from resposnes after applying search decorator
 			limitedResult := limitBySearch(response, attribute, search)
-			// enhanced resposne from search decorator
 			return limitedResult.Interface(), nil
 		})
 	}
@@ -57,11 +49,10 @@ func limitBySearch(response interface{}, attribute []string, search string) refl
 	return array
 }
 
-// getSearchFromQuery to get limit from params
+// getSearchFromQuery to get search term from query params
 func getSearchFromQuery(r *http.Request, username string) string {
-	// queryValues will have value for query params
 	queryValues := r.URL.Query()
-	// queryValues.Get gets the value of parameter in this case parameter is search
 	search := queryValues.Get("search")
+	search = strings.TrimSpace(search)
 	return search
 }

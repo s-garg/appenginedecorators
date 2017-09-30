@@ -2,26 +2,23 @@ package core
 
 import (
 	"fmt"
-	"runtime"
-	"strings"
 	"time"
 )
 
 // A ServerError has details of an error
 type ServerError struct {
-	When   time.Time 
-	What   string    
-	Who    string    
-	Code   ErrorCode 
-	Source error     
-	Stack  string    
+	When   time.Time
+	What   string
+	Who    string
+	Code   ErrorCode
+	Source error
 }
 
 func (e ServerError) Error() string {
 	if e.Source == nil {
-		return fmt.Sprintf("%v: Error %v for user '%v' -- %v", e.When, e.Code, e.Who, e.What)
+		return fmt.Sprintf("%v: Error %d for user '%s' -- %s", e.When, e.Code, e.Who, e.What)
 	} else {
-		return fmt.Sprintf("%v: Error %v for user '%v' -- %v -- %v ", e.When, e.Code, e.Who, e.What, e.Source.Error())
+		return fmt.Sprintf("%v: Error %d for user '%s' -- %s (source: %v)", e.When, e.Code, e.Who, e.What, e.Source.Error())
 	}
 }
 
@@ -36,7 +33,7 @@ const (
 	NotFound
 )
 
-var _userTypes = [...]string{
+var userTypes = [...]string{
 	"MissingErrorCode",
 	"BadRequest",
 	"Unauthorized",
@@ -44,7 +41,7 @@ var _userTypes = [...]string{
 	"NotFound",
 }
 
-var _httpErrorCodes = [...]int{
+var httpErrorCodes = [...]int{
 	500,
 	400,
 	401,
@@ -52,23 +49,19 @@ var _httpErrorCodes = [...]int{
 	404,
 }
 
-func (ut ErrorCode) String() string { return _userTypes[ut] }
+func (ut ErrorCode) String() string { return userTypes[ut] }
 
-func (ut ErrorCode) HttpErrorCode() int { return _httpErrorCodes[ut] }
+func (ut ErrorCode) HttpErrorCode() int { return httpErrorCodes[ut] }
 
 func NewServerError(what string, who string, code ErrorCode, err error) *ServerError {
-
 	if who == "" {
 		who = "unknown"
 	}
-	var stack [4096]byte
-	runtime.Stack(stack[:], false)
 	return &ServerError{
 		When:   time.Now(),
 		What:   what,
 		Who:    who,
 		Code:   code,
 		Source: err,
-		Stack:  strings.Replace(fmt.Sprintf("%s", stack[:]), "\u0000", "", -1),
 	}
 }
