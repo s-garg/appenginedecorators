@@ -10,25 +10,20 @@ import (
 	"time"
 )
 
-// Paginate is a Decorator , its utility is to limit the number of results based on a user set limit and a attribute of type timeStamp,
-// results before  the attribute will be displayed
+// Paginate returns a Decorator which will call the underlying handler and then return a section of the response based on
+// limit and timestamp query params. limit is used to set the number of records to be returned. timestamp is used for ignoring
+// records newer than the specified timestamp.
+//
+// Note: While this approach might be used in some cases, in most cases using the search support of app engine
+// would be more efficient.
 func Paginate(attribute string) Decorator {
 	return func(h Handler) Handler {
 		return HandlerFunc(func(r *http.Request, ps httprouter.Params, username string) (interface{}, *ServerError) {
-
-			// It takes a handler as param and ps httprouter.Params can have 2 query params limit and timestamp
-			// e.g. localhost:8080/_a/assemblies?limit=3&&timestamp=2017-07-25 16:11:46 ,
-			// we can set feild in attribute on which timestamp filter will be applied
-			ctx := appengine.NewContext(r)
-			// getLimitFromQuery gets the value of limit parameter from ps httprouter.Params
-			// e.g. localhost:8080/_a/assemblies?limit=3&&timestamp=2017-07-25 16:11:46 , it will return limit as 3
-			limit, err := getLimitFromQuery(r, username)
+			limit, err := getLimit(r, username)
 			if err != nil {
 				return nil, err
 			}
-			// getTimeStampFromQuery gets the value of timestamp parameter from ps httprouter.Params
-			// e.g. localhost:8080/_a/assemblies?limit=3&&timestamp=2017-07-25 16:11:46 , it will return limit as 2017-07-25 16:11:46
-			timestamp, err := getTimeStampFromQuery(r, username)
+			timestamp, err := getTimestamp(r, username)
 			if err != nil {
 				return nil, err
 			}
@@ -37,9 +32,6 @@ func Paginate(attribute string) Decorator {
 			if serverError != nil {
 				return response, serverError
 			}
-			// We used reflect package from Go to make pagination Generic
-			//reflect.ValueOf returns a new Value initialized to the concrete value
-			// stored in the interface i.  ValueOf(nil) returns the zero Value.
 			result := reflect.ValueOf(response)
 			array := reflect.MakeSlice(reflect.TypeOf(response), 0, 10)
 			count := limit
@@ -48,21 +40,19 @@ func Paginate(attribute string) Decorator {
 			}
 			if timestamp == nil && limit == 0 {
 				return response, nil
-
 			} else if timestamp != nil {
-				limitedResult := limitResultsByTimeStamp(attribute, count, timestamp, result, array)
+				limitedResult := getResultsByLimitAndTimestamp(attribute, count, timestamp, result, array)
 				return limitedResult.Interface(), nil
-
 			} else {
-				limitedResult := limitResultsOnlyByCount(count, result, array)
+				limitedResult := getResultsByLimit(count, result, array)
 				return limitedResult.Interface(), nil
 			}
 		})
 	}
 }
 
-//getLimitFromQuery to get limit from params
-func getLimitFromQuery(r *http.Request, username string) (int, *ServerError) {
+// getLimit get limit from the query params. If no limit is found, 0 is returned.
+func getLimit(r *http.Request, username string) (int, *ServerError) {
 	queryValues := r.URL.Query()
 	limit := queryValues.Get("limit")
 	if limit == "" {
@@ -70,14 +60,14 @@ func getLimitFromQuery(r *http.Request, username string) (int, *ServerError) {
 	}
 	limits, err := strconv.Atoi(limit)
 	if err != nil {
-		return 0, NewServerError("Parameter 'limit' has invalid value: "+limit+". Error: "+err.Error(),
+		return 0, NewServerError(fmt.Sprintf("Parameter 'limit' has invalid value: %s. Error: %v", limit, err.Error()),
 			username, BadRequest, err)
 	}
 	return limits, nil
-
 }
 
-func getTimeStampFromQuery(r *http.Request, username string) (*time.Time, *ServerError) {
+// getTimestamp get timestamp from the query params.
+func getTimestamp(r *http.Request, username string) (*time.Time, *ServerError) {
 	queryValues := r.URL.Query()
 	timestamp := queryValues.Get("timestamp")
 	var t time.Time
@@ -85,29 +75,21 @@ func getTimeStampFromQuery(r *http.Request, username string) (*time.Time, *Serve
 	if timestamp != "" {
 		t, err = time.Parse(time.RFC3339, timestamp)
 		if err != nil {
-			return nil, NewServerError("Parameter 'timestamp' has invalid value: "+timestamp+". Error: "+err.Error(),
+			return nil, NewServerError(fmt.Sprintf("Parameter 'timestamp' has invalid value: %s. Error: %v", timestamp, err.Error()),
 				username, BadRequest, err)
 		}
 		return &t, nil
 	} else {
 		return nil, nil
 	}
-
 }
 
-//limitResultsByTimeStamp limits the result by timestamp and  limit count
-//attribute : FeildName taken into consideration for timeStamp
-//count : value of limit
-//timeStamp : timeStamp value
-//input : Handler response
-//array : Slice of type handler Response
-func limitResultsByTimeStamp(attribute string, count int, timestamp *time.Time, input reflect.Value, array reflect.Value) reflect.Value {
+func getResultsByLimitAndTimestamp(attribute string, count int, timestamp *time.Time, input reflect.Value, array reflect.Value) reflect.Value {
 	countArray := array
 	for i := 0; i < input.Len(); i++ {
-		var UpdatedAt time.Time
-		// We extract timestamp from the input response struct by feild Name i.e attribute and typecast the interface to time
-		UpdatedAt = input.Index(i).Elem().FieldByName(attribute).Interface().(time.Time)
-		if UpdatedAt.Before(*timestamp) {
+		var updatedAt time.Time
+		updatedAt = input.Index(i).Elem().FieldByName(attribute).Interface().(time.Time)
+		if updatedAt.Before(*timestamp) {
 			array = reflect.Append(array, (input).Index(i))
 		}
 	}
@@ -116,15 +98,12 @@ func limitResultsByTimeStamp(attribute string, count int, timestamp *time.Time, 
 			countArray = reflect.Append(countArray, (array).Index(j))
 		}
 		return countArray
-
 	} else {
 		return array
 	}
 }
 
-// limitResultsOnlyByCount limits results when timestamp params is not specified
-// e.g. localhost:8080/_a/assemblies?limit=3
-func limitResultsOnlyByCount(count int, input reflect.Value, array reflect.Value) reflect.Value {
+func getResultsByLimit(count int, input reflect.Value, array reflect.Value) reflect.Value {
 	for i := 0; i < count; i++ {
 		array = reflect.Append(array, (input).Index(i))
 	}
